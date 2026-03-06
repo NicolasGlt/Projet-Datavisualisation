@@ -1,0 +1,68 @@
+global:
+  resolve_timeout: 5m
+  # Configurer votre SMTP ici pour les emails réels
+  # smtp_smarthost: 'smtp.gmail.com:587'
+  # smtp_from: 'alerts@your-domain.com'
+
+# Template de notification
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# ── Routing ────────────────────────────────────────────────────────────────────
+route:
+  group_by: ['alertname', 'service', 'env']
+  group_wait:      30s    # Attente avant premier envoi (agrégation)
+  group_interval:  5m     # Intervalle entre groupes
+  repeat_interval: 4h     # Répéter si toujours actif
+
+  receiver: 'default-receiver'
+
+  routes:
+    # Alertes critiques → receiver dédié (peut être PagerDuty, Slack, etc.)
+    - matchers:
+        - severity = "critical"
+      receiver: 'critical-receiver'
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Alertes de monitoring quality → receiver séparé
+    - matchers:
+        - alertname =~ "Prometheus.*|Scrape.*"
+      receiver: 'monitoring-receiver'
+      group_wait: 1m
+      repeat_interval: 12h
+
+# ── Receivers ─────────────────────────────────────────────────────────────────
+receivers:
+
+  - name: 'default-receiver'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'   # Remplacer par Slack/Teams/etc.
+        send_resolved: true
+
+  - name: 'critical-receiver'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: true
+    # Exemple Slack (décommenter et configurer) :
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    #     channel: '#alerts-critical'
+    #     title: '🔴 [CRITICAL] {{ .CommonLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    #     send_resolved: true
+
+  - name: 'monitoring-receiver'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: true
+
+# ── Inhibition ─────────────────────────────────────────────────────────────────
+inhibit_rules:
+  # Si ServiceDown est critique, inhiber les alertes warning du même service
+  - source_matchers:
+      - alertname = "ServiceDown"
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ['service', 'env']

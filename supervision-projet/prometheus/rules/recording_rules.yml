@@ -1,0 +1,56 @@
+groups:
+
+  - name: demo_api_recording_rules
+    interval: 30s
+    rules:
+
+      # Taux de requêtes par service (req/s sur 2min)
+      - record: job:http_requests:rate2m
+        expr: |
+          sum by (job, method, endpoint) (
+            rate(http_requests_total[2m])
+          )
+
+      # Taux d'erreurs 5xx par service (ratio sur 2min)
+      - record: job:http_errors_5xx:rate2m
+        expr: |
+          sum by (job) (
+            rate(http_requests_total{http_status=~"5.."}[2m])
+          )
+          /
+          sum by (job) (
+            rate(http_requests_total[2m])
+          )
+
+      # Taux d'erreurs 4xx + 5xx combiné
+      - record: job:http_errors_4xx5xx:rate2m
+        expr: |
+          sum by (job) (
+            rate(http_requests_total{http_status=~"[45].."}[2m])
+          )
+          /
+          sum by (job) (
+            rate(http_requests_total[2m])
+          )
+
+      # Disponibilité service (inverse du taux d'erreurs 5xx)
+      - record: job:http_availability:rate5m
+        expr: |
+          1 - (
+            sum by (job) (
+              rate(http_requests_total{http_status=~"5.."}[5m])
+            )
+            /
+            sum by (job) (
+              rate(http_requests_total[5m])
+            )
+          )
+
+      # Latence p95 par endpoint (nécessite histogram)
+      - record: job_endpoint:http_request_duration_p95:rate5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (job, endpoint, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )

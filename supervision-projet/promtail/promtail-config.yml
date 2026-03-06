@@ -1,0 +1,43 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+
+  # Collecte des logs Docker via le socket
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: status
+            values: ["running"]
+    relabel_configs:
+      # Nom du conteneur comme label
+      - source_labels: [__meta_docker_container_name]
+        regex: "/(.*)"
+        target_label: container
+      # Image comme label
+      - source_labels: [__meta_docker_container_image]
+        target_label: image
+      # Label "service" depuis les labels Docker Compose
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+    pipeline_stages:
+      # Parser les logs de l'API FastAPI (format structuré)
+      - regex:
+          expression: '.*level=(?P<level>\w+).*service=(?P<service>[\w-]+).*'
+      - labels:
+          level:
+          service:
+      # Parser le status code HTTP si présent
+      - regex:
+          expression: '.*status=(?P<status_code>\d+).*'
+      - labels:
+          status_code:

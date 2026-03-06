@@ -1,0 +1,140 @@
+{
+  "id": null,
+  "uid": "infra-system",
+  "title": "Infra / Système — N2 Diagnostic",
+  "description": "Saturation CPU, RAM, FS, réseau — pour corrélation avec incidents API",
+  "tags": ["infra", "node", "diagnostic"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "type": "query",
+        "label": "Instance",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(node_cpu_seconds_total, instance)",
+        "refresh": 2,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "🖥 CPU Usage %",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - avg by (instance, mode) (rate(node_cpu_seconds_total{instance=\"$instance\", mode=\"idle\"}[2m]))) * 100",
+          "legendFormat": "CPU used %"
+        },
+        {
+          "expr": "avg by (instance) (rate(node_cpu_seconds_total{instance=\"$instance\", mode=\"iowait\"}[2m])) * 100",
+          "legendFormat": "iowait %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": 0 },
+              { "color": "yellow", "value": 70 },
+              { "color": "red",    "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "🧠 RAM — Disponible vs Utilisée",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "node_memory_MemAvailable_bytes{instance=\"$instance\"}",
+          "legendFormat": "Dispo"
+        },
+        {
+          "expr": "node_memory_MemTotal_bytes{instance=\"$instance\"} - node_memory_MemAvailable_bytes{instance=\"$instance\"}",
+          "legendFormat": "Utilisée"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "id": 3,
+      "title": "💾 Disque — Espace utilisé %",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - node_filesystem_avail_bytes{instance=\"$instance\", mountpoint=\"/\", fstype!=\"tmpfs\"} / node_filesystem_size_bytes{instance=\"$instance\", mountpoint=\"/\", fstype!=\"tmpfs\"}) * 100",
+          "legendFormat": "/ (root)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": 0 },
+              { "color": "yellow", "value": 75 },
+              { "color": "red",    "value": 90 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "🌐 Réseau — Trafic entrant/sortant",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 8, "w": 16, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "rate(node_network_receive_bytes_total{instance=\"$instance\", device!~\"lo\"}[2m])",
+          "legendFormat": "IN {{ device }}"
+        },
+        {
+          "expr": "rate(node_network_transmit_bytes_total{instance=\"$instance\", device!~\"lo\"}[2m])",
+          "legendFormat": "OUT {{ device }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps" }
+      }
+    },
+    {
+      "id": 5,
+      "title": "📋 Résumé ressources",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))) * 100",
+          "legendFormat": "CPU %",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent" }
+      }
+    }
+  ]
+}
