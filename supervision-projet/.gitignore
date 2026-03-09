@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-*.pyo
-.env
-.DS_Store
-*.log
-grafana_data/
-prometheus_data/
-loki_data/
